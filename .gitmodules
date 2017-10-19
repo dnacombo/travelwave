@@ -1,3 +1,6 @@
 [submodule "misc"]
 	path = misc
 	url = https://github.com/dnacombo/miscMatlab.git
+[submodule "fieldtrip"]
+	path = fieldtrip
+	url = https://github.com/fieldtrip/fieldtrip.git
