@@ -11,9 +11,15 @@
 % 
 % This script is based on http://www.fieldtriptoolbox.org/example/compute_forward_simulated_data_and_apply_a_beamformer_scan
 
-addpath(fullfile(fileparts(mfilename('fullpath')),'misc'));
+rootdir = '/home/owncloud/Lab/Projects/TRAVELWAVE/code';
+
+% max's goodies.
+addpath(fullfile(rootdir,'misc'));
+addpath(fullfile(rootdir,'misc','plot'));
+
+% we use this fieldtrip and no other.
 rm_frompath('[Ff]ield[Tt]rip')
-addpath(fullfile(fileparts(mfilename('fullpath')),'fieldtrip'));
+addpath(fullfile(rootdir,'fieldtrip'));
 ft_defaults% add fieldtrip to the path and run ft_defaults
 
 %% create a gradiometer array and head volume
@@ -52,10 +58,12 @@ cfg.dip.frequency   = [10 10];
 
 nsamples = round(cfg.triallength*cfg.fsample);
 time                = (0:(nsamples-1))/cfg.fsample;
-% adding signal here to be able to plot it later
+% adding signal here rather than letting ft compute it in
+% ft_dipolesimulation to be able to plot it later 
 for i=1:size(cfg.dip.pos,1)
     cfg.dip.signal(i,:) = cos(cfg.dip.frequency(i)*time*2*pi + cfg.dip.phase(i)) * cfg.dip.amplitude(i);
 end
+dip = cfg.dip;
 
 cfg.relnoise = 10;
 
@@ -63,7 +71,6 @@ cfg.ntrials = 20;
 cfg.randomseed = 123;
 data = ft_dipolesimulation(cfg);
 
-dip = cfg.dip;
 
 %% compute the data covariance matrix for the LCMV
 % will capture the activity of the simulated dipoles
@@ -90,23 +97,23 @@ source = ft_sourceanalysis(cfg, timelock);
 
 %% plot head model
 figure(589);clf
-ft_plot_vol(hm,'vertexcolor','none','facecolor','none','edgecolor','k','facealpha',.5);
+ft_plot_vol(hm,'vertexcolor','none','facecolor',colors('wheat2'),'edgecolor','none','facealpha',.2);
 ft_plot_mesh(source.pos(source.inside,:));
 ft_plot_topo3d(grad.coilpos,freq.powspctrm,'facealpha',.5,'contourstyle','black','isolines',linspace(min(freq.powspctrm),max(freq.powspctrm),5));
 ft_plot_sens(grad);
 hold on
-k = dsearchn(source.pos,dip.pos);
+k = dsearchn(source.pos,dip.pos);% find positions in the grid closest to the dipoles
 quiver3(source.pos(k,1),source.pos(k,2),source.pos(k,3),dip.mom(1,:)',dip.mom(2,:)',dip.mom(3,:)','r','linewidth',2)
 view(120,30)
 rotate3d on
 
 %% compute time courses and measure phase shifts between pairs of dipoles
-tc1 = source.avg.filter{k(1)} * timelock.avg;
-% tc1 = cellfun(@(x)source.avg.filter{k(1)} * x,data.trial,'uniformoutput',0);
+tc1 = source.avg.filter{k(1)} * timelock.avg;% time course of the ERP
 tc2 = source.avg.filter{k(2)} * timelock.avg;
 
 fig(13,333);clf
 toi = timepts([0 1],timelock.time);
+titles = 'xyz';
 for i = 1:3
     subplot(1,3,i)
     h = plot(timelock.time(toi),tc1(i,toi));
@@ -115,22 +122,8 @@ for i = 1:3
     h = plot(timelock.time(toi),tc2(i,toi));
     plot(timelock.time(toi),dip.mom(i,2) * dip.signal(2,toi),'color',get(h,'color'),'linestyle',':','linewidth',2);
     ylim([-1.2 1.2])
+    title(titles(i));
 end
 
-%% compute the neural activity index, i.e. projected power divided by
-% projected noise
-cfg = [];
-cfg.powmethod = 'none'; % keep the power as estimated from the data covariance, i.e. the induced power
-source = ft_sourcedescriptives(cfg, source);
-source.avg.nai=source.avg.pow./source.avg.noise;  %neural activity index calculation
-
-source = rmfield(source,'time');
-
-cfg = [];
-cfg.method = 'ortho';
-cfg.funparameter = 'nai';
-cfg.funcolorlim = [1.5 2];  % the voxel in the center of the volume conductor messes up the autoscaling
-ft_sourceplot(cfg, source);
-
-
+legend('Meas1','Sim1','Meas2','Sim2')
 
